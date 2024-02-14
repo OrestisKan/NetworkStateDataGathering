@@ -1,26 +1,29 @@
 import kotlinx.coroutines.*
-import sun.nio.ch.NativeThread.signal
 import java.io.File
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.Executors
+import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
 
 @Volatile
 var endOfTransmissionReceived: Boolean = false
-var globalString = "Message id, Time, Sender Port, Receiver Port\n"
 var jobList = mutableListOf<Deferred<Unit>>()
+val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy_HH-mm")
+
+val initialString = "Message id, Time, Sender Port, Receiver Port\n"
+
+@Volatile
+var providersHashMap: HashMap<String, String> = HashMap()
 
 
 
 fun end() {
     println("Ending signal received!")
 
-    val fileName = "data_${LocalDateTime.now()}.csv"
-    File(fileName).writeText(globalString)
-    println("File is done")
     for (job in jobList) {
         try {
             job.cancel()
@@ -28,11 +31,26 @@ fun end() {
             e.printStackTrace()
         }
     }
-    exitProcess(0)
+
+    println("Closed all ports")
+    val keys = providersHashMap.keys.toList()
+    for (key in keys){
+        println("Generating file for $key")
+        endProvider(key)
+    }
+}
+
+fun endProvider(providerName: String) {
+    println("Entered End Provider")
+    if (!providersHashMap.contains(providerName)) return
+    println("Starting file generation for $providerName...")
+    val fileName = "${providerName}_SERVER_${formatter.format(LocalDateTime.now())}.csv"
+    val providerResults = providersHashMap.remove(providerName)!!
+    File(fileName).writeText(providerResults)
 }
 
 fun launchSockets(index: Int) {
-    val bufferSize = 36
+    val bufferSize = 100 //35 for UUID and the rest to account for various providers names
     try {
         val socket = DatagramSocket(index)
         while (true) {
@@ -48,43 +66,39 @@ fun launchSockets(index: Int) {
 
             val data = packet.data.copyOfRange(0, packet.length)
             val senderPort = packet.port
-            val stringData = String(data).trim().replace("\n", "")
 
-//            if(!stringData.matches("\\A\\p{ASCII}*\\z\n")) continue
+            println("Received ${String(data)}")
 
-            if (stringData.contains("END OF MESSAGE") && !endOfTransmissionReceived) {
-                endOfTransmissionReceived = true
-                end()
-                return
+            val dataTemp = String(data)
+            val stringDataArray = dataTemp.split("\\n")
+            if(stringDataArray.size < 2) continue //means that either provider or data is missing.
+
+            val providerName = stringDataArray[0]
+            val stringData = stringDataArray[1].trim().replace("\n", "")
+
+            if (stringData.contains("END OF MESSAGE")) {
+                endProvider(providerName)
             }
 
             val message = "${stringData}, ${System.currentTimeMillis()}, $senderPort, ${socket.localPort}\n"
-            globalString += message
+            var stringToAppend = providersHashMap.getOrDefault(providerName, initialString)
+            stringToAppend += message
+            providersHashMap.put(providerName, stringToAppend)
 
             println(message)
         }
     } catch (e: Exception) {
         println("Failed at index $index with error ${e.printStackTrace()}")
-        globalString += "Failed, to, launch, $index\n"
     }
 
 }
 
-fun signalHandler(signum: Int) {
-    // your logic here when interrupt happens
-}
-
-
-
 suspend fun main(args: Array<String>) {
-//    signal(SIGINT, signalHandler)
-    var ipAddress = "0.0.0.0"
+    Runtime.getRuntime().addShutdownHook(Thread({ end() }))
     var numberOfPorts = 65534
     try {
         val one = args[0]
         numberOfPorts = one.toInt()
-        val two = args[1]
-        ipAddress = two
     } catch (e: ArrayIndexOutOfBoundsException) {
         println("ArrayIndexOutOfBoundsException caught")
     }

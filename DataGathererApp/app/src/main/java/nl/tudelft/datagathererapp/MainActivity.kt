@@ -236,7 +236,7 @@ class MainActivity : AppCompatActivity() {
     private fun downloadCsv() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy_HH-mm")
-            saveCsvLauncher.launch("${selectedProvider}_${runType}_${formatter.format(LocalDateTime.now())}.csv")
+            saveCsvLauncher.launch("${selectedProvider}_${runType}_PHONE_${formatter.format(LocalDateTime.now())}.csv")
         } else {
             // For older versions, you can use the previous method
             saveCsvFileLegacy(getCSVData())
@@ -248,7 +248,7 @@ class MainActivity : AppCompatActivity() {
         // ...
 
         // Example:
-        if (CsvUtils.saveToCsv(this, "${selectedProvider}_${runType}.csv", csvContent)) {
+        if (CsvUtils.saveToCsv(this, "${selectedProvider}_${runType}_PHONE.csv", csvContent)) {
             // File saved successfully
             Toast.makeText(this, "CSV file saved successfully", Toast.LENGTH_SHORT).show()
         } else {
