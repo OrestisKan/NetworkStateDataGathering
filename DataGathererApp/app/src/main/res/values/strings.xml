@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">DataGathererApp</string>
+    <string name="enter_ip_address">Enter IP Address</string>
+    <string name="send_packets">Send Packets</string>
+    <string name="download">Download</string>
+    <string name="stop_process">Stop Process</string>
+</resources>
