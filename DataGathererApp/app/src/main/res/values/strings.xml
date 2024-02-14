@@ -4,4 +4,13 @@
     <string name="send_packets">Send Packets</string>
     <string name="download">Download</string>
     <string name="stop_process">Stop Process</string>
+    <string name="select_provider">Select Provider</string>
+    <string name="slow">Slow</string>
+    <string name="rapid">Rapid</string>
+    <string-array name="provider_options">
+        <item>Lebara</item>
+        <item>Lyca</item>
+        <item>Vodafone</item>
+        <item>Odido</item>
+    </string-array>
 </resources>

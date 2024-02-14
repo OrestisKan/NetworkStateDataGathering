@@ -3,9 +3,13 @@ package nl.tudelft.datagathererapp
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.Spinner
 import android.widget.Toast
+import android.widget.ToggleButton
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.Deferred
@@ -19,6 +23,7 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlin.random.Random
 
@@ -29,7 +34,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sendPacketsButton: Button
     private lateinit var downloadButton: Button
     private lateinit var stopButton: Button
+    private lateinit var providerSpinner: Spinner
     private lateinit var deferredRun: Deferred<Unit>
+    private lateinit var selectedProvider: String
+    private var runType: RunType = RunType.LONG
     private val builder: StringBuilder = java.lang.StringBuilder()
     private val saveCsvLauncher = registerForActivityResult(CreateDocument("text/csv")) { uri ->
         uri?.let { documentUri ->
@@ -52,8 +60,14 @@ class MainActivity : AppCompatActivity() {
         stopButton = findViewById(R.id.stop)
 
         sendPacketsButton.setOnClickListener {
-            deferredRun = GlobalScope.async {
-                sendAllPackets(InetAddress.getByName(ipEditText.text.toString()))
+            builder.clear()
+            builder.append("Message id, Time, Sender Port, Receiver Port, Success").appendLine()
+            if (!::selectedProvider.isInitialized) {
+                Toast.makeText(this@MainActivity, "Please select a provider first!!", Toast.LENGTH_SHORT).show()
+            }else {
+                deferredRun = GlobalScope.async {
+                    sendAllPackets(InetAddress.getByName(ipEditText.text.toString()))
+                }
             }
         }
 
@@ -68,25 +82,69 @@ class MainActivity : AppCompatActivity() {
 
         }
         keepScreenOn()
-        builder.append("Message id, Time, Sender Port, Receiver Port, Success").appendLine()
+
+
+        providerSpinner = findViewById(R.id.providerSpinner)
+
+        // Create an ArrayAdapter using the string array and a default spinner layout
+        ArrayAdapter.createFromResource(
+            this,
+            R.array.provider_options,
+            android.R.layout.simple_spinner_item
+        ).also { adapter ->
+            // Specify the layout to use when the list of choices appears
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            // Apply the adapter to the spinner
+            providerSpinner.adapter = adapter
+        }
+
+        // Set up an OnItemSelectedListener for the Spinner
+        providerSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                // Retrieve the selected item
+                selectedProvider = parent?.getItemAtPosition(position).toString()
+
+                // Use the selected item as needed
+                Toast.makeText(this@MainActivity, "Selected Provider: $selectedProvider", Toast.LENGTH_SHORT).show()
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                // Do nothing
+            }
+        }
+
+        val runTypeToggle = findViewById<ToggleButton>(R.id.runTypeToggle)
+
+        runTypeToggle.setOnCheckedChangeListener { _, isChecked ->
+            runType = if (isChecked) {
+                RunType.RAPID
+            } else {
+                RunType.LONG
+            }
+        }
+
     }
 
     @OptIn(DelicateCoroutinesApi::class)
     private suspend fun sendAllPackets(serverAddress: InetAddress) {
         var counter = 0
         var failures: Int
-        while (counter < 20) {
+
+        val (NUMBER_OF_RUNS ,DELAY_BETWEEN_TRANSMISSIONS, DELAY_BETWEEN_RUNS) = getRunConfigs()
+
+
+        while (counter < NUMBER_OF_RUNS) {
             failures = 0
             val sourcePortsSet = (0..65535).toList().shuffled()
             val destinationPortsSet = (0..65535).toList().shuffled()
 
-            val zippedList = sourcePortsSet.zip(destinationPortsSet)
-//            val finalList = listOf<Pair<Int,Int>>()
-//            for(i in 0..2000)
-//                finalList.add
+            var zippedList = sourcePortsSet.zip(destinationPortsSet)
             var index = 1
-            val newZippedList = zippedList.take(1000) // todo remove this!!!!!!!!!!!
-            for (pair in newZippedList) {
+
+            if(DELAY_BETWEEN_TRANSMISSIONS < 300)  zippedList = zippedList.take(1000) // Server can only handle around 1000 transmissions sent every 20ms
+
+
+            for (pair in zippedList) {
                 val sourcePort = pair.component1()
                 val destinationPort = pair.component2()
 
@@ -112,15 +170,17 @@ class MainActivity : AppCompatActivity() {
 
                     if (!success) failures++
                 }
-                delay(20)
+                delay(DELAY_BETWEEN_TRANSMISSIONS)
                 index++
             }
+
+
             println("Number of failures: $failures")
             counter++
             println("---------------------------")
-            println("Run $counter / 20 finished!!!!")
+            println("Run $counter / $NUMBER_OF_RUNS finished!!!!")
             println("---------------------------")
-            delay(300000) // wait 5 mins, makes sure that maps are clossing
+            delay(DELAY_BETWEEN_RUNS) // wait 5 mins, makes sure that maps are clossing
         }
         print("done 1")
         try{
@@ -147,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         var success: Boolean
         try {
             val udpSocket = if(sourcePort >=0) DatagramSocket(sourcePort) else DatagramSocket()
-            val sendData = messageBody.toByteArray(Charsets.UTF_8)
+            val sendData = (selectedProvider + "\n" + messageBody).toByteArray(Charsets.UTF_8)
 
             // Create UDP packet with the destination address and port
             val packet = DatagramPacket(
@@ -175,8 +235,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun downloadCsv() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Use Storage Access Framework for Android 10 and above
-            saveCsvLauncher.launch("data_${LocalDateTime.now()}.csv")
+            val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy_HH-mm")
+            saveCsvLauncher.launch("${selectedProvider}_${runType}_${formatter.format(LocalDateTime.now())}.csv")
         } else {
             // For older versions, you can use the previous method
             saveCsvFileLegacy(getCSVData())
@@ -188,7 +248,7 @@ class MainActivity : AppCompatActivity() {
         // ...
 
         // Example:
-        if (CsvUtils.saveToCsv(this, "data.csv", csvContent)) {
+        if (CsvUtils.saveToCsv(this, "${selectedProvider}_${runType}.csv", csvContent)) {
             // File saved successfully
             Toast.makeText(this, "CSV file saved successfully", Toast.LENGTH_SHORT).show()
         } else {
@@ -224,4 +284,19 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun getRunConfigs(): RunConfig {
+        val runConfig: RunConfig = if(runType == RunType.RAPID){
+            RunConfig(20, 20, 300000)
+        }else {
+            val list = listOf(380L, 400L, 420L, 440L, 450L, 460L, 480L, 500L, 550L)
+            val randomIndex = Random.nextInt(list.size)
+            RunConfig(1, list[randomIndex] , 0)
+        }
+        println("$runConfig")
+        return runConfig
+    }
 }
+
+
+data class RunConfig(val numberOfRuns: Int, val delayBetweenTransmissions: Long, val delayBetweenRuns: Long)

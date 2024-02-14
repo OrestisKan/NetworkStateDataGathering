@@ -5,10 +5,29 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
+    <ToggleButton
+        android:id="@+id/runTypeToggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:textOff="@string/slow"
+        android:textOn="@string/rapid"/>
+
+    <Spinner
+        android:id="@+id/providerSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:entries="@array/provider_options"
+        android:layout_below="@id/runTypeToggle"
+        android:prompt="@string/select_provider"/>
+
     <EditText
         android:id="@+id/ipEditText"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="60dp"
+        android:layout_below="@id/providerSpinner"
         android:hint="@string/enter_ip_address"/>
 
     <Button
@@ -30,5 +49,7 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/downloadButton"
         android:text="@string/stop_process"/>
+
+
 
 </RelativeLayout>
