@@ -8,6 +8,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Spinner
+import android.widget.TextView
 import android.widget.Toast
 import android.widget.ToggleButton
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
@@ -37,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var providerSpinner: Spinner
     private lateinit var deferredRun: Deferred<Unit>
     private lateinit var selectedProvider: String
+    private lateinit var informationLabel:TextView
     private var runType: RunType = RunType.LONG
     private val builder: StringBuilder = java.lang.StringBuilder()
     private val saveCsvLauncher = registerForActivityResult(CreateDocument("text/csv")) { uri ->
@@ -58,6 +60,7 @@ class MainActivity : AppCompatActivity() {
         sendPacketsButton = findViewById(R.id.sendPacketsButton)
         downloadButton = findViewById(R.id.downloadButton)
         stopButton = findViewById(R.id.stop)
+        informationLabel = findViewById(R.id.informationLabel)
 
         sendPacketsButton.setOnClickListener {
             builder.clear()
@@ -175,12 +178,21 @@ class MainActivity : AppCompatActivity() {
             }
 
 
-            println("Number of failures: $failures")
             counter++
+
+            println("Number of failures: $failures")
             println("---------------------------")
-            println("Run $counter / $NUMBER_OF_RUNS finished!!!!")
+            println("Run $counter / $NUMBER_OF_RUNS finished!")
             println("---------------------------")
-            delay(DELAY_BETWEEN_RUNS) // wait 5 mins, makes sure that maps are clossing
+
+
+            runOnUiThread {
+                val text = "Number of failures: $failures \n Run $counter / $NUMBER_OF_RUNS finished!"
+                informationLabel.text = text
+            }
+
+
+            delay(DELAY_BETWEEN_RUNS) // potentially wait for the next run
         }
         print("done 1")
         try{
@@ -189,6 +201,10 @@ class MainActivity : AppCompatActivity() {
             println("failed to send end messages")
         }
         print("done 2 ")
+        runOnUiThread {
+            val text = "Done with Run"
+            informationLabel.text = text
+        }
     }
 
     private fun saveToString(numericId: String, time: Long, sourcePort: Int, destinationPort: Int, success: Boolean) {
@@ -291,7 +307,7 @@ class MainActivity : AppCompatActivity() {
         }else {
             val list = listOf(380L, 400L, 420L, 440L, 450L, 460L, 480L, 500L, 550L)
             val randomIndex = Random.nextInt(list.size)
-            RunConfig(1, list[randomIndex] , 0)
+            RunConfig(1, list[randomIndex] , 100)
         }
         println("$runConfig")
         return runConfig
